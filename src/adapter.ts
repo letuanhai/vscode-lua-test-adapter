@@ -47,6 +47,8 @@ export class LuaTestAdapter implements TestAdapter {
 		if (!vscode.extensions.getExtension(luaDebugExtensionId)) {
 			const message = `Cannot debug: the "${luaDebugExtensionId}" extension is not installed. Please install it and try again.`;
 			this.log.error(message);
+			this.testStatesEmitter.fire(<TestRunStartedEvent>{ type: "started", tests });
+			this.testStatesEmitter.fire(<TestRunFinishedEvent>{ type: "finished" });
 			vscode.window.showErrorMessage(message);
 			return;
 		}
