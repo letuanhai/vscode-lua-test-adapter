@@ -7,9 +7,12 @@ This is a LuaUnit test adapter for Test Explorer UI (https://marketplace.visuals
 
 * Detect LuaUnit tests
 * Run LuaUnit tests
-* Debugging
-  * Depends on Lua Debug (https://marketplace.visualstudio.com/items?itemName=actboy168.lua-debug)
-  * Lua Debug has a known issue with Lua 5.4 (https://github.com/actboy168/lua-debug/issues/103)
+* Debugging (requires one of the extensions below, configurable via `luaTestAdapter.debugExtension`)
+  * [Lua Debug](https://marketplace.visualstudio.com/items?itemName=actboy168.lua-debug) by actboy168 (default)
+  * [Local Lua Debugger](https://marketplace.visualstudio.com/items?itemName=tomblind.local-lua-debugger-vscode) by tomblind
+    * The test file must pass varargs to LuaUnit so the debugger can forward test filter arguments: `LuaUnit.run(...)` or `LuaUnit.new():runSuite(...)`
+  * [Second Local Lua Debugger](https://marketplace.visualstudio.com/items?itemName=ismoh-games.second-local-lua-debugger-vscode) by ismoh-games (fork of tomblind's)
+    * Same requirement as Local Lua Debugger: the test file must use `LuaUnit.run(...)` or `LuaUnit.new():runSuite(...)`
 
 ## Not supported
 
@@ -39,6 +42,7 @@ function testFail()
     luaunit.assertEquals({1, 2, 3}, {1, 2, 4})
 end
 
+-- Use LuaUnit.run(...) with varargs if you want to use Local Lua Debugger for debugging
 os.exit(luaunit.LuaUnit.run())
 ```
 
@@ -56,8 +60,7 @@ os.exit(luaunit.LuaUnit.run())
 6. Install Lua Test Adapter
   * https://marketplace.visualstudio.com/items?itemName=lej.vscode-lua-test-adapter
 
-7. For debugging capability install Lua Debug
-  * https://marketplace.visualstudio.com/items?itemName=actboy168.lua-debug
+7. For debugging capability install one of the supported debug extensions (see [Supported](#supported)) and set `luaTestAdapter.debugExtension` if not using the default
 
 8. Run (or debug) the tests via the Test Explorer UI
 
@@ -67,6 +70,8 @@ os.exit(luaunit.LuaUnit.run())
 | --- | --- |
 | `luaTestAdapter.luaExe` | Path to Lua executable. The current workspace folder can be referred to using `${workspaceFolder}`. Defaults to `lua` |
 | `luaTestAdapter.testGlob` | Glob used to find test files. Defaults to `**/[tT]est*.{lua}` |
-| `luaTestAdapter.testRegex` | Regex used to find tests. Defaults to `/^\s*function\s+(?:[a-zA-Z][a-zA-Z0-9]*:)?(?<test>[tT]est[a-zA-Z0-9]*)\(\)(?:.*)$/` |
+| `luaTestAdapter.testRegex` | Regex matched against function/method names to identify tests. Defaults to `^[tT]est[a-zA-Z0-9_]*$` |
+| `luaTestAdapter.suiteRegex` | Regex matched against class names in `function ClassName:method()` syntax to identify test suites. Defaults to `^Test[a-zA-Z0-9_]*$` |
 | `luaTestAdapter.testEncoding` | Test file encoding. Defaults to `utf8` |
-| `luaTestAdapter.decorationRegex` | Regex used to find line number and failure message. Defaults to `/\.lua:(?<line>[1-9][0-9]*):(?<message>.*)stack traceback:/` |
+| `luaTestAdapter.decorationRegex` | Regex used to find line number and failure message in test output. Defaults to `/\.lua:(?<line>[1-9][0-9]*):(?<message>.*)stack traceback:/` |
+| `luaTestAdapter.debugExtension` | Debug extension used to debug tests. One of `actboy168.lua-debug` (default), `tomblind.local-lua-debugger-vscode`, or `ismoh-games.second-local-lua-debugger-vscode` |

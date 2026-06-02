@@ -20,6 +20,10 @@ function getSetting(section: string): string {
   return value;
 }
 
+export function getDebugExtension(): string {
+  return getSetting("debugExtension");
+}
+
 export function getLuaExe(): string {
   return substitutePath(getSetting("luaExe"));
 }

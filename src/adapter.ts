@@ -4,6 +4,11 @@ import { Log } from "vscode-test-adapter-util";
 import * as settings from "./settings";
 import { loadTests, runTests, findNode, getTestRunName } from "./tests";
 
+const LOCAL_LUA_DEBUGGER_IDS = new Set([
+	"tomblind.local-lua-debugger-vscode",
+	"ismoh-games.second-local-lua-debugger-vscode",
+]);
+
 export class LuaTestAdapter implements TestAdapter {
 
 	private disposables: { dispose(): void }[] = [];
@@ -43,9 +48,10 @@ export class LuaTestAdapter implements TestAdapter {
 	}
 
 	async debug(tests: string[]): Promise<void> {
-		const luaDebugExtensionId = "actboy168.lua-debug";
-		if (!vscode.extensions.getExtension(luaDebugExtensionId)) {
-			const message = `Cannot debug test: the extension Lua Debug (${luaDebugExtensionId}) is not installed. Please install it and try again.`;
+		const debugExtensionId = settings.getDebugExtension();
+		if (!vscode.extensions.getExtension(debugExtensionId)) {
+			const message = `Cannot debug test: the extension "${debugExtensionId}" is not installed. ` +
+				`Please install it or select a different debug extension in the Lua Test Adapter settings (luaTestAdapter.debugExtension).`;
 			this.log.error(message);
 			this.testStatesEmitter.fire(<TestRunStartedEvent>{ type: "started", tests });
 			this.testStatesEmitter.fire(<TestRunFinishedEvent>{ type: "finished" });
@@ -78,17 +84,52 @@ export class LuaTestAdapter implements TestAdapter {
 		}
 
 		const luaExe = settings.getLuaExe();
-		return new Promise<void>(() => {
-			vscode.debug.startDebugging(workspaceFolder, {
+		const isFileSuite = node.type === "suite" && !node.id.includes("::");
+		const testRunName = node.type === "test"
+			? (getTestRunName(node.id) ?? node.label)
+			: node.label;
+
+		this.testStatesEmitter.fire(<TestRunStartedEvent>{ type: "started", tests });
+
+		const debugSessionName = "Debug LuaUnit Tests"
+		const launchConfig = LOCAL_LUA_DEBUGGER_IDS.has(debugExtensionId)
+			? {
+				"type": "lua-local",
+				"request": "launch",
+				"name": debugSessionName,
+				"cwd": workspaceFolder.uri.fsPath,
+				"program": {
+					"lua": luaExe,
+					"file": file.fsPath
+				},
+				"args": isFileSuite ? ["--pattern", ".*"] : [testRunName]
+			}
+			: {
 				"type": "lua",
 				"request": "launch",
-				"name": "Debug Lua test",
+				"name": debugSessionName,
 				"luaexe": luaExe,
 				"cwd": workspaceFolder.uri.fsPath,
 				"program": file.fsPath,
-				"arg": [node.type === "test" ? (getTestRunName(node.id) ?? node.label) : node.label],
+				"arg": isFileSuite ? [] : [testRunName],
 				"console": "internalConsole",
 				"stopOnEntry": false
+			};
+
+		return new Promise<void>(resolve => {
+			vscode.debug.startDebugging(workspaceFolder, launchConfig).then(started => {
+				if (!started) {
+					this.testStatesEmitter.fire(<TestRunFinishedEvent>{ type: "finished" });
+					resolve();
+					return;
+				}
+				const listener = vscode.debug.onDidTerminateDebugSession(session => {
+					if (session.name === debugSessionName) {
+						listener.dispose();
+						this.testStatesEmitter.fire(<TestRunFinishedEvent>{ type: "finished" });
+						resolve();
+					}
+				});
 			});
 		});
 	}

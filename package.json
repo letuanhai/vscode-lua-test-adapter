@@ -106,6 +106,22 @@
           "default": "\\.lua:(?<line>[1-9][0-9]*):(?<message>.*)stack traceback:",
           "scope": "resource"
         },
+        "luaTestAdapter.debugExtension": {
+          "description": "Select Lua debugging extension used to debug tests.",
+          "type": "string",
+          "enum": [
+            "actboy168.lua-debug",
+            "tomblind.local-lua-debugger-vscode",
+            "ismoh-games.second-local-lua-debugger-vscode"
+          ],
+          "enumDescriptions": [
+            "Lua Debug",
+            "Local Lua Debugger",
+            "Second Local Lua Debugger"
+          ],
+          "default": "actboy168.lua-debug",
+          "scope": "resource"
+        },
         "luaTestAdapter.logpanel": {
           "description": "Write diagnostic logs to an output panel",
           "type": "boolean",

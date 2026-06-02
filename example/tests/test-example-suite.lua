@@ -41,4 +41,4 @@ function TestGreeter:testName()
     luaunit.assertNotNil(self.name)
 end
 
-os.exit(luaunit.LuaUnit.run())
+os.exit(luaunit.LuaUnit.run(...))
