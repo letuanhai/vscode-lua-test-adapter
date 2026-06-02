@@ -85,13 +85,13 @@
         "luaTestAdapter.testRegex": {
           "description": "Regex matched against function and method names to identify tests.",
           "type": "string",
-          "default": "^[tT]est[a-zA-Z0-9]*$",
+          "default": "^[tT]est[a-zA-Z0-9_]*$",
           "scope": "resource"
         },
         "luaTestAdapter.suiteRegex": {
           "description": "Regex matched against class names in 'function ClassName:method()' syntax to identify test suites.",
           "type": "string",
-          "default": "^Test[a-zA-Z0-9]*$",
+          "default": "^Test[a-zA-Z0-9_]*$",
           "scope": "resource"
         },
         "luaTestAdapter.testEncoding": {

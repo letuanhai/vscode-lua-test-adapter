@@ -48,7 +48,7 @@ export async function loadTests(): Promise<TestSuiteInfo> {
 
 	// Fixed regex that broadly finds all Lua function definitions. testRegex and
 	// suiteRegex from settings are applied separately to filter by name.
-	const discoveryRegex = /^\s*function\s+(?:(?<suite>[a-zA-Z][a-zA-Z0-9]*):)?(?<name>[a-zA-Z][a-zA-Z0-9]*)\(\)/gm;
+	const discoveryRegex = /^\s*function\s+(?:(?<suite>[a-zA-Z_][a-zA-Z0-9_]*):)?(?<name>[a-zA-Z_][a-zA-Z0-9_]*)\(\)/gm;
 
 	let testId = 1;
 	for (const file of files) {
