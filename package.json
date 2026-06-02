@@ -50,8 +50,7 @@
     "vscode": "^1.120.0"
   },
   "extensionDependencies": [
-    "hbenl.vscode-test-explorer",
-    "actboy168.lua-debug"
+    "hbenl.vscode-test-explorer"
   ],
   "activationEvents": [
     "onLanguage:lua",

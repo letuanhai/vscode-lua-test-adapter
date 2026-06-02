@@ -43,6 +43,14 @@ export class LuaTestAdapter implements TestAdapter {
 	}
 
 	async debug(tests: string[]): Promise<void> {
+		const luaDebugExtensionId = "actboy168.lua-debug";
+		if (!vscode.extensions.getExtension(luaDebugExtensionId)) {
+			const message = `Cannot debug: the "${luaDebugExtensionId}" extension is not installed. Please install it and try again.`;
+			this.log.error(message);
+			vscode.window.showErrorMessage(message);
+			return;
+		}
+
 		if (!this.suite) {
 			this.log.error("No tests loaded", tests);
 			return;
