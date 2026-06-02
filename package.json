@@ -1,19 +1,15 @@
 {
-  "name": "vscode-lua-test-adapter",
-  "displayName": "Lua Test Adapter",
-  "description": "Run your LuaUnit tests in the Sidebar of Visual Studio Code",
+  "name": "vscode-luaunit-test-adapter",
+  "displayName": "LuaUnit Test Adapter",
+  "description": "Run your LuaUnit tests in the Sidebar of Visual Studio Code - a personal fork of lej.vscode-lua-test-adapter",
   "icon": "img/icon.png",
-  "author": "Linus Sunde <linus.sunde@gmail.com>",
-  "publisher": "lej",
-  "version": "1.0.6",
+  "author": "Le Tuan Hai <letuanhai@users.noreply.github.com>",
+  "publisher": "lth",
+  "version": "1.0.7",
   "license": "MIT",
-  "homepage": "https://github.com/Lej/vscode-lua-test-adapter",
   "repository": {
-    "type": "git",
-    "url": "https://github.com/Lej/vscode-lua-test-adapter.git"
-  },
-  "bugs": {
-    "url": "https://github.com/Lej/vscode-lua-test-adapter/issues"
+    "type": "github",
+    "url": "https://github.com/letuanhai/vscode-lua-test-adapter.git"
   },
   "categories": [
     "Other"
@@ -32,7 +28,7 @@
     "rebuild": "npm run clean && npm run build",
     "package": "vsce package",
     "publish": "vsce publish",
-    "login": "vsce login lej"
+    "login": "vsce login lth"
   },
   "dependencies": {
     "tslib": "~2.8.1",

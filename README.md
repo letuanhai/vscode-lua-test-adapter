@@ -1,7 +1,8 @@
 # LuaUnit Test Adapter for Visual Studio Code
 
-Lua Test Adapter (https://marketplace.visualstudio.com/items?itemName=lej.vscode-lua-test-adapter)
-This is a LuaUnit test adapter for Test Explorer UI (https://marketplace.visualstudio.com/items?itemName=hbenl.vscode-test-explorer)
+This is a personal fork of [lej.vscode-lua-test-adapter](https://marketplace.visualstudio.com/items?itemName=lej.vscode-lua-test-adapter) with additional features for personal use.
+
+A LuaUnit test adapter for [Test Explorer UI](https://marketplace.visualstudio.com/items?itemName=hbenl.vscode-test-explorer).
 
 ## Supported
 
@@ -18,11 +19,6 @@ This is a LuaUnit test adapter for Test Explorer UI (https://marketplace.visuals
 
 * Automatic reloading of test definitions
 * Autorun
-
-## Example
-
-An example similar to the one described below in [Getting Started](#getting-started) can be found here:
-* https://github.com/Lej/vscode-lua-test-adapter-example
 
 ## Getting Started
 
@@ -58,7 +54,7 @@ os.exit(luaunit.LuaUnit.run())
   * https://marketplace.visualstudio.com/items?itemName=hbenl.vscode-test-explorer
 
 6. Install Lua Test Adapter
-  * https://marketplace.visualstudio.com/items?itemName=lej.vscode-lua-test-adapter
+  * https://marketplace.visualstudio.com/items?itemName=lth.vscode-lua-test-adapter
 
 7. For debugging capability install one of the supported debug extensions (see [Supported](#supported)) and set `luaTestAdapter.debugExtension` if not using the default
 
