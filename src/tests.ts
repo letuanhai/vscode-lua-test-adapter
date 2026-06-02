@@ -90,6 +90,9 @@ export async function loadTests(): Promise<TestSuiteInfo> {
 				if (!testRegex.test(funcName)) continue;
 				if (className && !suiteRegex.test(className)) continue;
 
+				// 0-based line number of the function definition
+				const line = content.substring(0, match.index).split("\n").length - 1;
+
 				const id = testId.toString();
 				testId++;
 
@@ -99,7 +102,8 @@ export async function loadTests(): Promise<TestSuiteInfo> {
 					type: "test",
 					id,
 					label: funcName,
-					file: file.fsPath
+					file: file.fsPath,
+					line
 				};
 
 				if (className) {
@@ -112,6 +116,7 @@ export async function loadTests(): Promise<TestSuiteInfo> {
 							id: `${fileRelPath}::${className}`,
 							label: className,
 							file: file.fsPath,
+							line, // first method's line is the best anchor for the suite
 							children: []
 						};
 						testFileSuite.children.push(classSuite);
