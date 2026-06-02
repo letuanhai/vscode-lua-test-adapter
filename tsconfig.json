@@ -1,8 +1,9 @@
 {
   "compilerOptions": {
-    "target": "es2016",
-    "lib": [ "es2016" ],
+    "target": "es2018",
+    "lib": [ "es2018" ],
     "module": "commonjs",
+    "rootDir": "src",
     "outDir": "out",
     "importHelpers": true,
     "sourceMap": true,

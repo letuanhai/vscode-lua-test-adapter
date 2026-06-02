@@ -14,11 +14,12 @@ local M={}
 -- private exported functions (for testing)
 M.private = {}
 
-M.VERSION='3.4-dev'
+M.VERSION='3.5'
 M._VERSION=M.VERSION -- For LuaUnit v2 compatibility
 
 -- a version which distinguish between regular Lua and LuaJit
-M._LUAVERSION = (jit and jit.version) or _VERSION
+M._LUAVERSION = rawget(_G, 'jit') and jit.version or _VERSION
+
 
 --[[ Some people like assertEquals( actual, expected ) and some people prefer
 assertEquals( expected, actual ).
@@ -63,7 +64,7 @@ M.FORCE_DEEP_ANALYSIS   = true
 M.DISABLE_DEEP_ANALYSIS = false
 
 -- set EXPORT_ASSERT_TO_GLOBALS to have all asserts visible as global values
--- EXPORT_ASSERT_TO_GLOBALS = true
+local EXPORT_ASSERT_TO_GLOBALS = rawget(_G, 'EXPORT_ASSERT_TO_GLOBALS') and EXPORT_ASSERT_TO_GLOBALS
 
 -- we need to keep a copy of the script args before it is overriden
 local cmdline_argv = rawget(_G, "arg")
@@ -76,33 +77,52 @@ M.SKIP_PREFIX    = 'LuaUnit test SKIP:    ' -- prefix string for skipped tests
 
 M.USAGE=[[Usage: lua <your_test_suite.lua> [options] [testname1 [testname2] ... ]
 Options:
-  -h, --help:             Print this help
-  --version:              Print version information
-  -v, --verbose:          Increase verbosity
-  -q, --quiet:            Set verbosity to minimum
-  -e, --error:            Stop on first error
-  -f, --failure:          Stop on first failure or error
-  -s, --shuffle:          Shuffle tests before running them
-  -o, --output OUTPUT:    Set output type to OUTPUT
-                          Possible values: text, tap, junit, nil
-  -n, --name NAME:        For junit only, mandatory name of xml file
-  -r, --repeat NUM:       Execute all tests NUM times, e.g. to trig the JIT
-  -p, --pattern PATTERN:  Execute all test names matching the Lua PATTERN
-                          May be repeated to include several patterns
-                          Make sure you escape magic chars like +? with %
-  -x, --exclude PATTERN:  Exclude all test names matching the Lua PATTERN
-                          May be repeated to exclude several patterns
-                          Make sure you escape magic chars like +? with %
-  testname1, testname2, ... : tests to run in the form of testFunction,
-                              TestClass or TestClass.testMethod
-]]
+  -h, --help:                  Print this help
+  --version:                   Print version information
+  -v, --verbose:               Increase verbosity
+  -q, --quiet:                 Set verbosity to minimum
+  -e, --error:                 Stop on first error
+  -f, --failure:               Stop on first failure or error
+  -s, --shuffle:               Shuffle tests before running them
+  -o, --output OUTPUT:         Set output type to OUTPUT
+                               Possible values: text, tap, junit, nil
+  -n, --name NAME:             For junit only, mandatory name of xml file
+  -r, --repeat NUM:            Execute all tests NUM times, e.g. to trig the JIT
+  -p, --pattern PATTERN:       Execute all test names matching the Lua PATTERN
+                               May be repeated to include several patterns
+                               Make sure you escape magic chars like +? with %
+  -x, --exclude PATTERN:       Exclude all test names matching the Lua PATTERN
+                               May be repeated to exclude several patterns
+                               Make sure you escape magic chars like +? with %
+  -t, --test-prefix PREFIX:    Prefix used for detecting test tables or functions (default: test)
+  -T, --test-suffix SUFFIX:    Suffix used for detecting test tables or functions (default: none)
+  -m, --method-prefix PREFIX:  Prefix used for detecting test methods (default: test)
+  testname1, testname2, ... :  tests to run in the form of testFunction,
+                               TestClass or TestClass.testMethod
 
+You may also control LuaUnit options with the following environment variables:
+* LUAUNIT_OUTPUT: same as --output
+* LUAUNIT_JUNIT_FNAME: same as --name ]]
 
 ----------------------------------------------------------------
 --
 --                 general utility functions
 --
 ----------------------------------------------------------------
+
+local function dbg(...)
+    -- print debug information if the environment variable _DEBUG is set
+    if (os.getenv("LUAUNIT_DEBUG")) then
+        local n = select("#", ...)
+        local unpack = rawget(_G, "unpack") or table.unpack
+        local values = { 'DEBUG' }
+        for i = 1, n do
+            values[i+1] = M.prettystr(select(i, ...))
+        end
+        print(table.concat(values, ' '))
+    end
+end
+M.dbg = dbg
 
 --[[ Note on catching exit
 
@@ -125,7 +145,7 @@ To force exit LuaUnit while running, please call before os.exit (assuming lu is 
     lu.unregisterCurrentSuite() 
 
 ]]
-        error(msg)
+        M.private.error_fmt(2, msg)
     end
     M.oldOsExit(...)
 end
@@ -339,6 +359,14 @@ local function patternFilter(patterns, expr)
 end
 M.private.patternFilter = patternFilter
 
+local function escapeBinaryBytes(s)
+    -- Replace non-printable and high bytes with visible byte escapes.
+    return s:gsub('[%z\1-\8\11\12\14-\31\127-\255]', function(c)
+        return string.format('\\x%02X', string.byte(c))
+    end)
+end
+M.private.escapeBinaryBytes = escapeBinaryBytes
+
 local function xmlEscape( s )
     -- Return s escaped for XML attributes
     -- escapes table:
@@ -348,6 +376,7 @@ local function xmlEscape( s )
     -- >   &gt;
     -- &   &amp;
 
+    s = escapeBinaryBytes(s)
     return string.gsub( s, '.', {
         ['&'] = "&amp;",
         ['"'] = "&quot;",
@@ -360,6 +389,7 @@ M.private.xmlEscape = xmlEscape
 
 local function xmlCDataEscape( s )
     -- Return s escaped for CData section, escapes: "]]>"
+    s = escapeBinaryBytes(s)
     return string.gsub( s, ']]>', ']]&gt;' )
 end
 M.private.xmlCDataEscape = xmlCDataEscape
@@ -508,17 +538,17 @@ local function stripLuaunitTrace2( stackTrace, errMsg )
 end
 M.private.stripLuaunitTrace2 = stripLuaunitTrace2
 
-
 local function prettystr_sub(v, indentLevel, printTableRefs, cycleDetectTable )
     local type_v = type(v)
     if "string" == type_v  then
+        local escaped = escapeBinaryBytes(v)
         -- use clever delimiters according to content:
         -- enclose with single quotes if string contains ", but no '
-        if v:find('"', 1, true) and not v:find("'", 1, true) then
-            return "'" .. v .. "'"
+        if escaped:find('"', 1, true) and not escaped:find("'", 1, true) then
+            return "'" .. escaped .. "'"
         end
         -- use double quotes otherwise, escape embedded "
-        return '"' .. v:gsub('"', '\\"') .. '"'
+        return '"' .. escaped:gsub('"', '\\"') .. '"'
 
     elseif "table" == type_v then
         --if v.__class__ then
@@ -1314,6 +1344,7 @@ local function error_fmt(level, ...)
      -- printf-style error()
     error(string.format(...), (level or 1) + 1 + M.STRIP_EXTRA_ENTRIES_IN_STACK_TRACE)
 end
+M.private.error_fmt = error_fmt
 
 ----------------------------------------------------------------
 --
@@ -1876,21 +1907,21 @@ function M.assertNotIsMinusZero(value, extra_msg_or_nil)
     end
 end
 
-function M.assertTableContains(t, expected)
+function M.assertTableContains(t, expected, extra_msg_or_nil)
     -- checks that table t contains the expected element
     if table_findkeyof(t, expected) == nil then
         t, expected = prettystrPairs(t, expected)
-        fail_fmt(2, 'Table %s does NOT contain the expected element %s',
+        fail_fmt(2, extra_msg_or_nil, 'Table %s does NOT contain the expected element %s',
                  t, expected)
     end
 end
 
-function M.assertNotTableContains(t, expected)
+function M.assertNotTableContains(t, expected, extra_msg_or_nil)
     -- checks that table t doesn't contain the expected element
     local k = table_findkeyof(t, expected)
     if k ~= nil then
         t, expected = prettystrPairs(t, expected)
-        fail_fmt(2, 'Table %s DOES contain the unwanted element %s (at key %s)',
+        fail_fmt(2, extra_msg_or_nil, 'Table %s DOES contain the unwanted element %s (at key %s)',
                  t, expected, prettystr(k))
     end
 end
@@ -2528,28 +2559,34 @@ end
         return nil, someName
     end
 
-    function M.LuaUnit.isMethodTestName( s )
+    function M.LuaUnit:isMethodTestName( s )
         -- return true is the name matches the name of a test method
         -- default rule is that is starts with 'Test' or with 'test'
-        return string.sub(s, 1, 4):lower() == 'test'
+        -- and it can be overridden with -m
+        local prefix = self.methodPrefix or 'test'
+        return string.sub(s, 1, #prefix):lower() == prefix:lower()
     end
 
-    function M.LuaUnit.isTestName( s )
+    function M.LuaUnit:isTestName( s )
         -- return true is the name matches the name of a test
-        -- default rule is that is starts with 'Test' or with 'test'
-        return string.sub(s, 1, 4):lower() == 'test'
+        -- default rulee is that is starts with 'Test' or with 'test'
+        -- but it can be overridden with -t and -T
+        local prefix = self.testPrefix or 'test'
+        return string.sub(s, 1, #prefix):lower() == prefix:lower() or
+            self.testSuffix and s:sub(-#self.testSuffix) == self.testSuffix or false
     end
 
-    function M.LuaUnit.collectTests()
+    function M.LuaUnit:collectTests()
         -- return a list of all test names in the global namespace
         -- that match LuaUnit.isTestName
 
         local testNames = {}
         for k, _ in pairs(_G) do
-            if type(k) == "string" and M.LuaUnit.isTestName( k ) then
+            if type(k) == "string" and self:isTestName( k ) then
                 table.insert( testNames , k )
             end
         end
+
         table.sort( testNames )
         return testNames
     end
@@ -2563,6 +2600,9 @@ end
         -- --output, -o, + name: select output type
         -- --pattern, -p, + pattern: run test matching pattern, may be repeated
         -- --exclude, -x, + pattern: run test not matching pattern, may be repeated
+        -- --test-prefix, -t, + prefix: prefix of test tables or functions (default: test)
+        -- --test-suffix, -T, + suffix: suffix of tests tables or functions (default: none)
+        -- --method-prefix, -m, + prefix: prefix of test methods (default: test)
         -- --shuffle, -s, : shuffle tests before reunning them
         -- --name, -n, + fname: name of output file for junit, default to stdout
         -- --repeat, -r, + num: number of times to execute each test
@@ -2582,6 +2622,9 @@ end
         local SET_EXCLUDE = 3
         local SET_FNAME = 4
         local SET_REPEAT = 5
+        local SET_METHOD_PREFIX = 6
+        local SET_TEST_PREFIX = 7
+        local SET_TEST_SUFFIX = 8
 
         if cmdLine == nil then
             return result
@@ -2624,6 +2667,15 @@ end
             elseif option == '--exclude' or option == '-x' then
                 state = SET_EXCLUDE
                 return state
+            elseif option == '--method-prefix' or option == '-m' then
+                state = SET_METHOD_PREFIX
+                return state
+            elseif option == '--test-prefix' or option == '-t' then
+                state = SET_TEST_PREFIX
+                return state
+            elseif option == '--test-suffix' or option == '-T' then
+                state = SET_TEST_SUFFIX
+                return state
             end
             error('Unknown option: '..option,3)
         end
@@ -2654,11 +2706,21 @@ end
                     result['pattern'] = { notArg }
                 end
                 return
+            elseif state == SET_METHOD_PREFIX then
+                result['methodPrefix'] = cmdArg
+                return
+            elseif state == SET_TEST_PREFIX then
+                result['testPrefix'] = cmdArg
+                return
+            elseif state == SET_TEST_SUFFIX then
+                result['testSuffix'] = cmdArg
+                return
             end
             error('Unknown parse state: '.. state)
         end
 
 
+        cmdLine = cmdLine or {}
         for i, cmdArg in ipairs(cmdLine) do
             if state ~= nil then
                 setArg( cmdArg, state, result )
@@ -2748,6 +2810,12 @@ end
         self.stackTrace = stackTrace
     end
 
+    function NodeStatus:updateFromNode(node)
+        self.status = node.status
+        self.msg = node.msg
+        self.stackTrace = node.stackTrace
+    end
+
     function NodeStatus:isSuccess()
         return self.status == NodeStatus.SUCCESS
     end
@@ -2831,6 +2899,8 @@ end
             runCount = 0,
             currentTestNumber = 0,
             currentClassName = "",
+            currentSuiteNode = nil,
+            currentClassNode = nil,
             currentNode = nil,
             suiteStarted = true,
             startTime = os.clock(),
@@ -2850,14 +2920,22 @@ end
             skippedCount = 0,
         }
 
+        self.result.currentSuiteNode = NodeStatus.new( 0, 'setupSuite', '')
         self.outputType = self.outputType or TextOutput
         self.output = self.outputType.new(self)
         self.output:startSuite()
     end
 
     function M.LuaUnit:startClass( className, classInstance )
+        dbg('startClass() ', className)
         self.result.currentClassName = className
+        self.result.currentClassNode = NodeStatus.new( self.result.currentTestNumber, 'setupClass', className )
         self.output:startClass( className )
+        if self.result.currentSuiteNode:isNotSuccess() then 
+            self.result.currentClassNode:updateFromNode( self.result.currentSuiteNode )
+            -- do not start anything if setupSuite() is in failure/error
+            return
+        end
         self:setupClass( className, classInstance )
     end
 
@@ -2872,29 +2950,46 @@ end
         self.result.currentNode.startTime = os.clock()
         table.insert( self.result.allTests, self.result.currentNode )
         self.output:startTest( testName )
+
+        dbg('startTest() currentClassNode=', self.result.currentClassNode)
+        dbg('startTest() currentNode=', self.result.currentNode)
+
+        if self.result.currentClassNode:isNotSuccess() then 
+            self.result.currentNode:updateFromNode( self.result.currentClassNode )
+            -- do not start anything if setupClass() is in failure/error
+            return
+        end
     end
 
-    function M.LuaUnit:updateStatus( err )
+    function M.LuaUnit:updateStatus( nodeType, err )
+        -- "node" is the test node to update
         -- "err" is expected to be a table / result from protectedCall()
+        local node
+        if nodeType == 'suite' then
+            node = self.result.currentSuiteNode
+        elseif nodeType == 'class' then
+            node = self.result.currentClassNode
+        elseif nodeType == 'test' then
+            node = self.result.currentNode
+        else
+            error('No such node type: ' .. prettystr(nodeType))
+        end
+        dbg('updateStatus() - node '..nodeType, node, ' err: ', err)
         if err.status == NodeStatus.SUCCESS then
             return
         end
 
-        local node = self.result.currentNode
+        --[[ We record every error and failures.
 
-        --[[ As a first approach, we will report only one error or one failure for one test.
-
-        However, we can have the case where the test is in failure, and the teardown is in error.
-        In such case, it's a good idea to report both a failure and an error in the test suite. This is
-        what Python unittest does for example. However, it mixes up counts so need to be handled carefully: for
-        example, there could be more (failures + errors) count that tests. What happens to the current node ?
-
-        We will do this more intelligent version later.
+        In some cases, you can have more errors/failures than test counts, for example if there is an error
+        in a test and another one in the tearDown.
         ]]
 
         -- if the node is already in failure/error, just don't report the new error (see above)
         if node.status ~= NodeStatus.SUCCESS then
-            return
+            -- report the error with a new node
+            dbg('updateStatus() - node already in failure/error, reporting new error with a new node')
+            node = NodeStatus.new( node.number, node.testName, node.className )
         end
 
         if err.status == NodeStatus.FAIL then
@@ -2915,8 +3010,6 @@ end
 
     function M.LuaUnit:endTest()
         local node = self.result.currentNode
-        -- print( 'endTest() '..prettystr(node))
-        -- print( 'endTest() '..prettystr(node:isNotSuccess()))
         node.duration = os.clock() - node.startTime
         node.startTime = nil
         self.output:endTest( node )
@@ -2927,7 +3020,7 @@ end
             if self.quitOnError or self.quitOnFailure then
                 -- Runtime error - abort test execution as requested by
                 -- "--error" option. This is done by setting a special
-                -- flag that gets handled in runSuiteByInstances().
+                -- flag that gets handled in internalRunSuiteByInstances().
                 print("\nERROR during LuaUnit test execution:\n" .. node.msg)
                 self.result.aborted = true
             end
@@ -2935,7 +3028,7 @@ end
             if self.quitOnFailure then
                 -- Failure - abort test execution as requested by
                 -- "--failure" option. This is done by setting a special
-                -- flag that gets handled in runSuiteByInstances().
+                -- flag that gets handled in internalRunSuiteByInstances().
                 print("\nFailure during LuaUnit test execution:\n" .. node.msg)
                 self.result.aborted = true
             end
@@ -2948,7 +3041,10 @@ end
     end
 
     function M.LuaUnit:endClass()
-        self:teardownClass( self.lastClassName, self.lastClassInstance )
+        -- do not teardown class if setupSuite() is in failure/error
+        if self.result.currentSuiteNode:isSuccess() then 
+            self:teardownClass( self.lastClassName, self.lastClassInstance )
+        end
         self.output:endClass()
     end
 
@@ -3024,6 +3120,11 @@ end
         end
         -- print('ok="'..prettystr(ok)..'" err="'..prettystr(err)..'"')
 
+        if type(err) == 'string' then
+            -- if the error is a string, we assume it's a runtime error and we keep the message as is
+            return { status = NodeStatus.ERROR, msg = err, trace = 'M.LuaUnit:protectedCall()\nerr_handler()' }
+        end
+
         local iter_msg
         iter_msg = self.exeRepeat and 'iteration '..self.currentCount
 
@@ -3072,6 +3173,8 @@ end
             self.lastClassInstance = classInstance
         end
 
+        dbg('execOneFunction() currentClassNode='..prettystr(self.result.currentClassNode))
+
         self:startTest(prettyFuncName)
 
         local node = self.result.currentNode
@@ -3088,13 +3191,13 @@ end
                              self.asFunction( classInstance.setup ) or
                              self.asFunction( classInstance.SetUp )
                 if func then
-                    self:updateStatus(self:protectedCall(classInstance, func, className..'.setUp'))
+                    self:updateStatus('test', self:protectedCall(classInstance, func, className..'.setUp'))
                 end
             end
 
             -- run testMethod()
             if node:isSuccess() then
-                self:updateStatus(self:protectedCall(classInstance, methodInstance, prettyFuncName))
+                self:updateStatus('test', self:protectedCall(classInstance, methodInstance, prettyFuncName))
             end
 
             -- lastly, run tearDown (if any)
@@ -3104,7 +3207,7 @@ end
                              self.asFunction( classInstance.teardown ) or
                              self.asFunction( classInstance.Teardown )
                 if func then
-                    self:updateStatus(self:protectedCall(classInstance, func, className..'.tearDown'))
+                    self:updateStatus('test', self:protectedCall(classInstance, func, className..'.tearDown'))
                 end
             end
         end
@@ -3112,21 +3215,23 @@ end
         self:endTest()
     end
 
-    function M.LuaUnit.expandOneClass( result, className, classInstance )
+    function M.LuaUnit:expandOneClass( result, className, classInstance )
         --[[
         Input: a list of { name, instance }, a class name, a class instance
         Ouptut: modify result to add all test method instance in the form:
         { className.methodName, classInstance }
         ]]
         for methodName, methodInstance in sortedPairs(classInstance) do
-            if M.LuaUnit.asFunction(methodInstance) and M.LuaUnit.isMethodTestName( methodName ) then
+            if M.LuaUnit.asFunction(methodInstance) and self:isMethodTestName( methodName ) then
                 table.insert( result, { className..'.'..methodName, classInstance } )
             end
         end
     end
 
-    function M.LuaUnit.expandClasses( listOfNameAndInst )
+
+    function M.LuaUnit:expandClasses( listOfNameAndInst )
         --[[
+
         -- expand all classes (provided as {className, classInstance}) to a list of {className.methodName, classInstance}
         -- functions and methods remain untouched
 
@@ -3155,12 +3260,23 @@ end
                     end
                     table.insert( result, { name, instance } )
                 else
-                    M.LuaUnit.expandOneClass( result, name, instance )
+                    self:expandOneClass( result, name, instance )
                 end
             end
         end
 
         return result
+    end
+
+    function M.LuaUnit:applyTestPrefixSuffixFilter( listOfNameAndInst )
+        local testObjects = {}
+        for i, v in ipairs( listOfNameAndInst ) do
+            -- local name, instance = v[1], v[2]
+            if self:isTestName( v[1] ) or v[1] == 'setupSuite' or v[1] == 'teardownSuite' then
+                table.insert( testObjects, v )
+            end
+        end
+        return testObjects
     end
 
     function M.LuaUnit.applyPatternFilter( patternIncFilter, listOfNameAndInst )
@@ -3193,61 +3309,79 @@ end
     function M.LuaUnit:setupSuite( listOfNameAndInst )
         local setupSuite = getKeyInListWithGlobalFallback("setupSuite", listOfNameAndInst)
         if  self.asFunction( setupSuite ) then
-            self:updateStatus( self:protectedCall( nil, setupSuite, 'setupSuite' ) )
+            self:updateStatus( 'suite', self:protectedCall( nil, setupSuite, 'setupSuite' ) )
         end
     end
 
     function M.LuaUnit:teardownSuite(listOfNameAndInst)
+        dbg('teardownSuite() - listOfNameAndInst: ', listOfNameAndInst)
         local teardownSuite = getKeyInListWithGlobalFallback("teardownSuite", listOfNameAndInst)
         if self.asFunction( teardownSuite ) then
-            self:updateStatus( self:protectedCall( nil, teardownSuite, 'teardownSuite') )
+            local result = self:protectedCall( nil, teardownSuite, 'teardownSuite')
+            dbg('Result of teardownSuite()', result)
+            self:updateStatus( 'suite', result )
         end
     end
 
     function  M.LuaUnit:setupClass( className, instance )
         if type( instance ) == 'table' and self.asFunction( instance.setupClass ) then
-            self:updateStatus( self:protectedCall( instance, instance.setupClass, className..'.setupClass' ) )
+            self:updateStatus( 'class', self:protectedCall( instance, instance.setupClass, className..'.setupClass' ) )
         end
     end
 
     function M.LuaUnit:teardownClass( className, instance )
         if type( instance ) == 'table' and self.asFunction( instance.teardownClass ) then
-            self:updateStatus( self:protectedCall( instance, instance.teardownClass, className..'.teardownClass' ) )
+            self:updateStatus( 'class', self:protectedCall( instance, instance.teardownClass, className..'.teardownClass' ) )
         end
     end
 
-    function M.LuaUnit:runSuiteByInstances( listOfNameAndInst )
+    function M.LuaUnit:internalRunSuiteByInstances( listOfNameAndInst )
         --[[ Run an explicit list of tests. Each item of the list must be one of:
         * { function name, function instance }
         * { class name, class instance }
         * { class.method name, class instance }
-        ]]
 
-        local expandedList = self.expandClasses( listOfNameAndInst )
+        This function is internal to LuaUnit. The official API to perform this action is runSuiteByInstances()
+        ]]
+        
+        dbg('internalRunSuiteByInstances() - called with '.. #listOfNameAndInst .. ' items')
+
+        local testableObjectList = self:applyTestPrefixSuffixFilter( listOfNameAndInst )
+        dbg('internalRunSuiteByInstances() - #testableObjectList: '.. #testableObjectList .. ' items')
+
+        local expandedList = self:expandClasses( testableObjectList )
         if self.shuffle then
             randomizeTable( expandedList )
         end
+        dbg('internalRunSuiteByInstances() - #expandedList: '.. #expandedList .. ' items')
+
+        dbg('Applying pattern filter: '.. prettystr(self.patternIncludeFilter))
         local filteredList, filteredOutList = self.applyPatternFilter(
             self.patternIncludeFilter, expandedList )
 
+        dbg('internalRunSuiteByInstances() - #filteredList: '.. #filteredList .. ' items')
         self:startSuite( #filteredList, #filteredOutList )
         self:setupSuite( listOfNameAndInst )
 
         for i,v in ipairs( filteredList ) do
             local name, instance = v[1], v[2]
-            if M.LuaUnit.asFunction(instance) then
-                self:execOneFunction( nil, name, nil, instance )
+            if name == 'setupSuite' or name == 'teardownSuite' then
+                -- these are not tests, ignore them
             else
-                -- expandClasses() should have already taken care of sanitizing the input
-                assert( type(instance) == 'table' )
-                local className, methodName = M.LuaUnit.splitClassMethod( name )
-                assert( className ~= nil )
-                local methodInstance = instance[methodName]
-                assert(methodInstance ~= nil)
-                self:execOneFunction( className, methodName, instance, methodInstance )
-            end
-            if self.result.aborted then
-                break -- "--error" or "--failure" option triggered
+                if M.LuaUnit.asFunction(instance) then
+                    self:execOneFunction( nil, name, nil, instance )
+                else
+                    -- expandClasses() should have already taken care of sanitizing the input
+                    assert( type(instance) == 'table', 'Instance must be a table not '..type(instance)..' with value '..prettystr(instance))
+                    local className, methodName = M.LuaUnit.splitClassMethod( name )
+                    assert( className ~= nil, 'Class name must not be nil for name '..name )
+                    local methodInstance = instance[methodName]
+                    assert(methodInstance ~= nil, "Could not find method in class "..tostring(className).." for method "..tostring(methodName))
+                    self:execOneFunction( className, methodName, instance, methodInstance )
+                end
+                if self.result.aborted then
+                    break -- "--error" or "--failure" option triggered
+                end
             end
         end
 
@@ -3265,11 +3399,13 @@ end
         end
     end
 
-    function M.LuaUnit:runSuiteByNames( listOfName )
+    function M.LuaUnit:internalRunSuiteByNames( listOfName )
         --[[ Run LuaUnit with a list of generic names, coming either from command-line or from global
             namespace analysis. Convert the list into a list of (name, valid instances (table or function))
-            and calls runSuiteByInstances.
+            and calls internalRunSuiteByInstances.
         ]]
+
+        dbg('internalRunSuiteByNames', listOfName)
 
         local instanceName, instance
         local listOfNameAndInst = {}
@@ -3307,6 +3443,8 @@ end
                 error( "No such name in global space: "..instanceName )
             end
 
+            dbg('internalRunSuiteByNames() - found instance for name '..instanceName..' of type '..type(instance))
+
             if (type(instance) ~= 'table' and type(instance) ~= 'function') then
                 self:unregisterSuite()
                 error( 'Name must match a function or a table: '..instanceName )
@@ -3315,7 +3453,7 @@ end
             table.insert( listOfNameAndInst, { name, instance } )
         end
 
-        self:runSuiteByInstances( listOfNameAndInst )
+        self:internalRunSuiteByInstances( listOfNameAndInst )
     end
 
     function M.LuaUnit.run(...)
@@ -3333,17 +3471,19 @@ end
     function M.LuaUnit:registerSuite()
         -- register the current instance into our global array of instances
         -- print('-> Register suite')
+        dbg('registerSuite()')
         M.LuaUnit.instances[ #M.LuaUnit.instances+1 ] = self
     end
 
     function M.unregisterCurrentSuite()
         -- force unregister the last registered suite
+        dbg('unregisterCurrentSuite()')
         table.remove(M.LuaUnit.instances, #M.LuaUnit.instances)
     end
 
     function M.LuaUnit:unregisterSuite()
-        -- print('<- Unregister suite')
-        -- remove our current instqances from the global array of instances
+        dbg('unregisterSuite()')
+        -- remove our current instances from the global array of instances
         local instanceIdx = nil
         for i, instance in ipairs(M.LuaUnit.instances) do
             if instance == self then
@@ -3359,7 +3499,12 @@ end
 
     end
 
-    function M.LuaUnit:runSuite( ... )
+    function M.LuaUnit:initFromArguments( ... )
+        --[[Parses all arguments from either command-line or direct call and set internal
+        flags of LuaUnit runner according to it.
+
+        Return the list of names which were possibly passed on the command-line or as arguments
+        ]]
         local args = {...}
         if type(args[1]) == 'table' and args[1].__class__ == 'LuaUnit' then
             -- run was called with the syntax M.LuaUnit:runSuite()
@@ -3383,6 +3528,9 @@ end
         self.exeRepeat            = options.exeRepeat
         self.patternIncludeFilter = options.pattern
         self.shuffle              = options.shuffle
+        self.methodPrefix         = self.methodPrefix or options.methodPrefix
+        self.testPrefix           = self.testPrefix or options.testPrefix
+        self.testSuffix           = self.testSuffix or options.testSuffix
 
         options.output     = options.output or os.getenv('LUAUNIT_OUTPUT')
         options.fname      = options.fname  or os.getenv('LUAUNIT_JUNIT_FNAME')
@@ -3395,12 +3543,67 @@ end
             pcall_or_abort(self.setOutputType, self, options.output, options.fname)
         end
 
-        self:registerSuite()
-        self:runSuiteByNames( options.testNames or M.LuaUnit.collectTests() )
-        self:unregisterSuite()
+        return options.testNames
+    end
 
+    function M.LuaUnit:runSuite( ... )
+        dbg('runSuite() - called with ', ... )
+        local testNames = self:initFromArguments(...)
+        self:registerSuite()
+        self:internalRunSuiteByNames( testNames or self:collectTests() )
+        self:unregisterSuite()
         return self.result.notSuccessCount
     end
+
+    function M.LuaUnit:runSuiteByInstances( listOfNameAndInst, ... )
+        --[[
+        Run all test functions or tables provided as input.
+
+        Input: a list of { name, instance }
+            instance can either be a function or a table containing test functions starting with the prefix "test"
+
+        return the number of failures and errors, 0 meaning success
+        ]]
+        -- parse the command-line arguments
+        dbg('runSuiteByInstances() - called with '.. #listOfNameAndInst .. ' items' .. ' and arguments: '.. prettystr({...}))
+        local testNames = self:initFromArguments( ... )
+
+        -- if test names were provided as arguments, we need to filter the list of instances according to these names
+        if testNames then
+            table.insert(testNames, 'setupSuite')
+            table.insert(testNames, 'teardownSuite')
+
+            local filteredList = {}
+            for i, testNamePairToRun in ipairs( listOfNameAndInst ) do
+                for i, allowedTestName in ipairs( testNames ) do
+                    if testNamePairToRun[1] == allowedTestName then
+                        table.insert( filteredList, testNamePairToRun )
+                        break
+                    end
+                end
+            end
+            listOfNameAndInst = filteredList
+        end
+
+        self:runSuiteByInstancesNoCmdLineParsing( listOfNameAndInst )
+    end
+
+    function M.LuaUnit:runSuiteByInstancesNoCmdLineParsing( listOfNameAndInst )
+        --[[ Run all test functions or tables provided as input, without parsing any command-line arguments.
+
+        Input: a list of { name, instance }
+            instance can either be a function or a table containing test functions starting with the prefix "test"
+
+        return the number of failures and errors, 0 meaning success
+        ]]
+        dbg('runSuiteByInstancesNoCmdLineParsing() - called with '.. #listOfNameAndInst .. ' items')
+        self:registerSuite()
+        self:internalRunSuiteByInstances( listOfNameAndInst )
+        self:unregisterSuite()
+        return self.result.notSuccessCount
+    end
+
+
 -- class LuaUnit
 
 -- For compatbility with LuaUnit v2
@@ -3408,6 +3611,7 @@ M.run = M.LuaUnit.run
 M.Run = M.LuaUnit.run
 
 function M:setVerbosity( verbosity )
+    -- set the verbosity value (as integer)
     M.LuaUnit.verbosity = verbosity
 end
 M.set_verbosity = M.setVerbosity
