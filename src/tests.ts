@@ -42,8 +42,13 @@ export async function loadTests(): Promise<TestSuiteInfo> {
 	console.log("Found test files", testGlob, files.length);
 
 	const testRegex = settings.getTestRegex();
+	const suiteRegex = settings.getSuiteRegex();
 	const testEncoding = settings.getTestEncoding();
 	const readFile = util.promisify(fs.readFile);
+
+	// Fixed regex that broadly finds all Lua function definitions. testRegex and
+	// suiteRegex from settings are applied separately to filter by name.
+	const discoveryRegex = /^\s*function\s+(?:(?<suite>[a-zA-Z][a-zA-Z0-9]*):)?(?<name>[a-zA-Z][a-zA-Z0-9]*)\(\)/gm;
 
 	let testId = 1;
 	for (const file of files) {
@@ -74,26 +79,31 @@ export async function loadTests(): Promise<TestSuiteInfo> {
 		// Tracks LuaUnit class suite nodes created within this file
 		const classSuites = new Map<string, TestSuiteInfo>();
 
+		discoveryRegex.lastIndex = 0;
 		let match: RegExpExecArray | null;
 		do {
-			match = testRegex.exec(content);
-			if (match && match.groups && match.groups["test"]) {
-				const className = match.groups["suite"];
-				const testName = match.groups["test"];
+			match = discoveryRegex.exec(content);
+			if (match?.groups) {
+				const className = match.groups["suite"] ?? "";
+				const funcName = match.groups["name"] ?? "";
+
+				if (!testRegex.test(funcName)) continue;
+				if (className && !suiteRegex.test(className)) continue;
+
 				const id = testId.toString();
 				testId++;
 
-				console.log("Found test", file.fsPath, className ? `${className}:${testName}` : testName, id);
+				console.log("Found test", file.fsPath, className ? `${className}:${funcName}` : funcName, id);
 
 				const test: TestInfo = {
 					type: "test",
 					id,
-					label: testName,
+					label: funcName,
 					file: file.fsPath
 				};
 
 				if (className) {
-					testRunNames.set(id, `${className}.${testName}`);
+					testRunNames.set(id, `${className}.${funcName}`);
 
 					let classSuite = classSuites.get(className);
 					if (!classSuite) {
@@ -109,7 +119,7 @@ export async function loadTests(): Promise<TestSuiteInfo> {
 					}
 					classSuite.children.push(test);
 				} else {
-					testRunNames.set(id, testName);
+					testRunNames.set(id, funcName);
 					testFileSuite.children.push(test);
 				}
 			}

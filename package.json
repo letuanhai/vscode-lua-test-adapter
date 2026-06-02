@@ -71,28 +71,39 @@
       "title": "Lua Test Adapter",
       "properties": {
         "luaTestAdapter.luaExe": {
-          "description": "Path to Lua executable. Defaults to 'lua'",
+          "description": "Path to Lua executable.",
           "type": "string",
+          "default": "lua",
           "scope": "resource"
         },
         "luaTestAdapter.testGlob": {
-          "description": "Glob used to find test files. Defaults to '**/[tT]est*.{lua}'",
+          "description": "Glob used to find test files.",
           "type": "string",
+          "default": "**/[tT]est*.{lua}",
           "scope": "resource"
         },
         "luaTestAdapter.testRegex": {
-          "description": "Regex used to find tests. Named capture group 'suite' captures the LuaUnit class name (for class methods like 'function MyClass:testFoo()'), and 'test' captures the test function name. Defaults to /^\\s*function\\s+(?:(?<suite>[a-zA-Z][a-zA-Z0-9]*):)?(?<test>[tT]est[a-zA-Z0-9]*)\\(\\)(?:.*)$/",
+          "description": "Regex matched against function and method names to identify tests.",
           "type": "string",
+          "default": "^[tT]est[a-zA-Z0-9]*$",
+          "scope": "resource"
+        },
+        "luaTestAdapter.suiteRegex": {
+          "description": "Regex matched against class names in 'function ClassName:method()' syntax to identify test suites.",
+          "type": "string",
+          "default": "^Test[a-zA-Z0-9]*$",
           "scope": "resource"
         },
         "luaTestAdapter.testEncoding": {
-          "description": "Test file encoding. Defaults to 'utf8'",
+          "description": "Test file encoding.",
           "type": "string",
+          "default": "utf8",
           "scope": "resource"
         },
         "luaTestAdapter.decorationRegex": {
-          "description": "Regex used to find line number and failure message. Defaults to /\\.lua:(?<line>[1-9][0-9]*):(?<message>.*)stack traceback:/",
+          "description": "Regex matched against test output to extract the line number ('line' group) and failure message ('message' group).",
           "type": "string",
+          "default": "\\.lua:(?<line>[1-9][0-9]*):(?<message>.*)stack traceback:",
           "scope": "resource"
         },
         "luaTestAdapter.logpanel": {
