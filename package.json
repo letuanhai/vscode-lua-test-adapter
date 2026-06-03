@@ -66,43 +66,43 @@
       "type": "object",
       "title": "Lua Test Adapter",
       "properties": {
-        "luaTestAdapter.luaExe": {
+        "luaUnitTestAdapter.luaExe": {
           "description": "Path to Lua executable.",
           "type": "string",
           "default": "lua",
           "scope": "resource"
         },
-        "luaTestAdapter.testGlob": {
+        "luaUnitTestAdapter.testGlob": {
           "description": "Glob used to find test files.",
           "type": "string",
           "default": "**/[tT]est*.{lua}",
           "scope": "resource"
         },
-        "luaTestAdapter.testRegex": {
+        "luaUnitTestAdapter.testRegex": {
           "description": "Regex matched against function and method names to identify tests.",
           "type": "string",
           "default": "^[tT]est[a-zA-Z0-9_]*$",
           "scope": "resource"
         },
-        "luaTestAdapter.suiteRegex": {
+        "luaUnitTestAdapter.suiteRegex": {
           "description": "Regex matched against class names in 'function ClassName:method()' syntax to identify test suites.",
           "type": "string",
           "default": "^Test[a-zA-Z0-9_]*$",
           "scope": "resource"
         },
-        "luaTestAdapter.testEncoding": {
+        "luaUnitTestAdapter.testEncoding": {
           "description": "Test file encoding.",
           "type": "string",
           "default": "utf8",
           "scope": "resource"
         },
-        "luaTestAdapter.decorationRegex": {
+        "luaUnitTestAdapter.decorationRegex": {
           "description": "Regex matched against test output to extract the line number ('line' group) and failure message ('message' group).",
           "type": "string",
           "default": "\\.lua:(?<line>[1-9][0-9]*):(?<message>.*)stack traceback:",
           "scope": "resource"
         },
-        "luaTestAdapter.debugExtension": {
+        "luaUnitTestAdapter.debugExtension": {
           "description": "Select Lua debugging extension used to debug tests.",
           "type": "string",
           "enum": [
@@ -118,12 +118,12 @@
           "default": "actboy168.lua-debug",
           "scope": "resource"
         },
-        "luaTestAdapter.logpanel": {
+        "luaUnitTestAdapter.logpanel": {
           "description": "Write diagnostic logs to an output panel",
           "type": "boolean",
           "scope": "resource"
         },
-        "luaTestAdapter.logfile": {
+        "luaUnitTestAdapter.logfile": {
           "description": "Write diagnostic logs to the given file",
           "type": "string",
           "scope": "resource"

@@ -2,14 +2,15 @@ import * as vscode from "vscode";
 import { TestHub, testExplorerExtensionId } from "vscode-test-adapter-api";
 import { Log, TestAdapterRegistrar } from "vscode-test-adapter-util";
 import { LuaTestAdapter } from "./adapter";
+import { CONFIG_NAMESPACE } from "./config";
 
 export async function activate(context: vscode.ExtensionContext) {
 
 	const workspaceFolder = (vscode.workspace.workspaceFolders || [])[0];
 
 	// create a simple logger that can be configured with the configuration variables
-	// `luaTestAdapter.logpanel` and `luaTestAdapter.logfile`
-	const log = new Log("luaTestAdapter", workspaceFolder, "Lua Test Adapter Log");
+	// `CONFIG_NAMESPACE.logpanel` and `CONFIG_NAMESPACE.logfile`
+	const log = new Log(CONFIG_NAMESPACE, workspaceFolder, "Lua Test Adapter Log");
 	context.subscriptions.push(log);
 
 	// get the Test Explorer extension

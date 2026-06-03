@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { CONFIG_NAMESPACE } from "./config";
 
 function substitutePath(s: string): string {
   const workspaceFolder = (vscode.workspace.workspaceFolders || [])[0]?.uri?.fsPath;
@@ -12,7 +13,7 @@ function substitutePath(s: string): string {
 // empty string, falls back to the default declared in package.json so that the
 // code never needs to hardcode default values in two places.
 function getSetting(section: string): string {
-  const config = vscode.workspace.getConfiguration("luaTestAdapter");
+  const config = vscode.workspace.getConfiguration(CONFIG_NAMESPACE);
   const value = config.get<string>(section);
   if (!value) {
     return config.inspect<string>(section)?.defaultValue ?? "";
