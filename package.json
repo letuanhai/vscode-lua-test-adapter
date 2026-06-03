@@ -1,5 +1,5 @@
 {
-  "name": "vscode-luaunit-test-adapter",
+  "name": "luaunit-test-adapter",
   "displayName": "LuaUnit Test Adapter",
   "description": "Run your LuaUnit tests in the Sidebar of Visual Studio Code - a personal fork of lej.vscode-lua-test-adapter",
   "author": "Le Tuan Hai <letuanhai@users.noreply.github.com>",
@@ -22,10 +22,13 @@
   "main": "out/main.js",
   "scripts": {
     "clean": "rimraf out *.vsix",
+    "prebuild": "tsx scripts/generate-config.ts",
     "build": "tsc",
+    "prewatch": "npm run prebuild",
     "watch": "tsc -w",
     "rebuild": "npm run clean && npm run build",
     "package": "vsce package",
+    "prepublish": "npm run rebuild",
     "publish": "vsce publish",
     "login": "vsce login lth"
   },
@@ -37,9 +40,10 @@
   "devDependencies": {
     "@types/node": "~25.9.1",
     "@types/vscode": "~1.120.0",
-    "typescript": "~6.0.3",
     "@vscode/vsce": "~3.9.1",
-    "rimraf": "~6.1.3"
+    "rimraf": "~6.1.3",
+    "tsx": "^4.22.4",
+    "typescript": "~6.0.3"
   },
   "engines": {
     "vscode": "^1.120.0"
@@ -64,43 +68,43 @@
     "configuration": {
       "type": "object",
       "properties": {
-        "luaTestAdapter.luaExe": {
+        "luaunit-test-adapter.luaExe": {
           "description": "Path to Lua executable.",
           "type": "string",
           "default": "lua",
           "scope": "resource"
         },
-        "luaTestAdapter.testGlob": {
+        "luaunit-test-adapter.testGlob": {
           "description": "Glob used to find test files.",
           "type": "string",
           "default": "**/[tT]est*.{lua}",
           "scope": "resource"
         },
-        "luaTestAdapter.testRegex": {
+        "luaunit-test-adapter.testRegex": {
           "description": "Regex matched against function and method names to identify tests.",
           "type": "string",
           "default": "^[tT]est[a-zA-Z0-9_]*$",
           "scope": "resource"
         },
-        "luaTestAdapter.suiteRegex": {
+        "luaunit-test-adapter.suiteRegex": {
           "description": "Regex matched against class names in 'function ClassName:method()' syntax to identify test suites.",
           "type": "string",
           "default": "^Test[a-zA-Z0-9_]*$",
           "scope": "resource"
         },
-        "luaTestAdapter.testEncoding": {
+        "luaunit-test-adapter.testEncoding": {
           "description": "Test file encoding.",
           "type": "string",
           "default": "utf8",
           "scope": "resource"
         },
-        "luaTestAdapter.decorationRegex": {
+        "luaunit-test-adapter.decorationRegex": {
           "description": "Regex matched against test output to extract the line number ('line' group) and failure message ('message' group).",
           "type": "string",
           "default": "\\.lua:(?<line>[1-9][0-9]*):(?<message>.*)stack traceback:",
           "scope": "resource"
         },
-        "luaTestAdapter.debugExtension": {
+        "luaunit-test-adapter.debugExtension": {
           "description": "Select Lua debugging extension used to debug tests.",
           "type": "string",
           "enum": [
@@ -116,12 +120,12 @@
           "default": "actboy168.lua-debug",
           "scope": "resource"
         },
-        "luaTestAdapter.logpanel": {
+        "luaunit-test-adapter.logpanel": {
           "description": "Write diagnostic logs to an output panel",
           "type": "boolean",
           "scope": "resource"
         },
-        "luaTestAdapter.logfile": {
+        "luaunit-test-adapter.logfile": {
           "description": "Write diagnostic logs to the given file",
           "type": "string",
           "scope": "resource"

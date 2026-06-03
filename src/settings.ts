@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { getPrefix, CONFIG_KEYS } from "./config";
 
 function substitutePath(s: string): string {
   const workspaceFolder = (vscode.workspace.workspaceFolders || [])[0]?.uri?.fsPath;
@@ -11,42 +12,42 @@ function substitutePath(s: string): string {
 // Reads a setting value. When the user has explicitly cleared the field to an
 // empty string, falls back to the default declared in package.json so that the
 // code never needs to hardcode default values in two places.
-function getSetting(section: string): string {
-  const config = vscode.workspace.getConfiguration("luaTestAdapter");
-  const value = config.get<string>(section);
+function getSetting(key: string): string {
+  const config = vscode.workspace.getConfiguration(getPrefix());
+  const value = config.get<string>(key);
   if (!value) {
-    return config.inspect<string>(section)?.defaultValue ?? "";
+    return config.inspect<string>(key)?.defaultValue ?? "";
   }
   return value;
 }
 
 export function getDebugExtension(): string {
-  return getSetting("debugExtension");
+  return getSetting(CONFIG_KEYS.debugExtension);
 }
 
 export function getLuaExe(): string {
-  return substitutePath(getSetting("luaExe"));
+  return substitutePath(getSetting(CONFIG_KEYS.luaExe));
 }
 
 export function getTestGlob(): string {
-  return getSetting("testGlob");
+  return getSetting(CONFIG_KEYS.testGlob);
 }
 
 // Returns a regex matched against test function/method names.
 export function getTestRegex(): RegExp {
-  return new RegExp(getSetting("testRegex"));
+  return new RegExp(getSetting(CONFIG_KEYS.testRegex));
 }
 
 // Returns a regex matched against class names in 'function ClassName:method()' syntax.
 export function getSuiteRegex(): RegExp {
-  return new RegExp(getSetting("suiteRegex"));
+  return new RegExp(getSetting(CONFIG_KEYS.suiteRegex));
 }
 
 export function getTestEncoding(): BufferEncoding {
-  return getSetting("testEncoding") as BufferEncoding;
+  return getSetting(CONFIG_KEYS.testEncoding) as BufferEncoding;
 }
 
 // Returns a regex matched against test output to extract line number and message.
 export function getDecorationRegex(): RegExp {
-  return new RegExp(getSetting("decorationRegex"), "gs");
+  return new RegExp(getSetting(CONFIG_KEYS.decorationRegex), "gs");
 }
