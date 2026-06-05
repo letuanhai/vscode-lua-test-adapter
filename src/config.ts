@@ -24,6 +24,4 @@ export const CONFIG_KEYS = {
     testEncoding: "testEncoding",
     decorationRegex: "decorationRegex",
     debugExtension: "debugExtension",
-    logpanel: "logpanel",
-    logfile: "logfile",
 } as const;

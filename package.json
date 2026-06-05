@@ -119,16 +119,6 @@
           ],
           "default": "actboy168.lua-debug",
           "scope": "resource"
-        },
-        "luaunit-test-adapter.logpanel": {
-          "description": "Write diagnostic logs to an output panel",
-          "type": "boolean",
-          "scope": "resource"
-        },
-        "luaunit-test-adapter.logfile": {
-          "description": "Write diagnostic logs to the given file",
-          "type": "string",
-          "scope": "resource"
         }
       }
     }
